@@ -5,10 +5,11 @@ const mongoose = require('mongoose');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const express = require('express');
-require('dotenv').config();
+require('dotenv').config(); 
 
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 3000;
+
 
 // === EXPRESS APP UNTUK /healthz dan / ===
 const healthApp = express();
