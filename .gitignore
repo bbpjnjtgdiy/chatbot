@@ -1,0 +1,16 @@
+# Folder yang sangat besar
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+
+# File sensitif dan log
+.env
+*.log
+
+# File ZIP/arsip
+*.zip
+
+# IDE dan OS files
+.vscode/
+.DS_Store
+Thumbs.db
