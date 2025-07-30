@@ -10,14 +10,25 @@ require('dotenv').config();
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 3000;
 
-// === EXPRESS APP UNTUK /healthz ===
+// === EXPRESS APP UNTUK /healthz dan / ===
 const healthApp = express();
 healthApp.get('/healthz', (req, res) => {
   res.status(200).send('✅ Bot WhatsApp Aktif');
 });
-healthApp.listen(PORT, () => {
-  console.log(`🌐 Endpoint /healthz aktif di http://localhost:${PORT}/healthz`);
+healthApp.get('/', (req, res) => {
+  res.status(200).send('Bot WhatsApp is running');
 });
+healthApp.listen(PORT, () => {
+  console.log(`🌐 Endpoint aktif di http://localhost:${PORT}/healthz`);
+});
+
+// Log dummy untuk Render supaya tidak timeout
+if (process.env.RENDER === 'true') {
+  console.log('⌛ Startup delay aktif di lingkungan Render');
+  setTimeout(() => {
+    console.log('✅ Delay selesai, lanjutkan proses init...');
+  }, 3000);
+}
 
 (async () => {
   try {
@@ -41,11 +52,11 @@ healthApp.listen(PORT, () => {
       }),
       puppeteer: {
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        headless: true
+        headless: 'new' // gunakan 'new' untuk stabilitas Render
       }
     });
 
-    // 4. QR Code
+    // 4. QR Code dan Event Bot
     client.on('qr', (qr) => {
       console.log('📱 Scan QR berikut:');
       qrcode.generate(qr, { small: true });
@@ -54,6 +65,9 @@ healthApp.listen(PORT, () => {
     client.on('ready', () => {
       console.log('✅ Bot WhatsApp siap digunakan (RemoteAuth)');
     });
+
+    // Inisialisasi lebih awal agar Render tidak timeout
+    client.initialize();
 
     // === Bot Logic ===
     const session = new Map();
@@ -179,8 +193,6 @@ Balas: *Ya* / *Tidak*`);
         console.error("❌ Terjadi error saat menangani pesan:", err);
       }
     });
-
-    client.initialize();
   } catch (err) {
     console.error('❌ Gagal inisialisasi:', err);
   }
