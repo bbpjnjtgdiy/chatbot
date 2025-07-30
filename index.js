@@ -1,19 +1,34 @@
+// === WhatsApp Bot Setup ===
 const { Client, RemoteAuth } = require('whatsapp-web.js');
 const { MongoStore } = require('wwebjs-mongo');
 const mongoose = require('mongoose');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
-
+const express = require('express');
 require('dotenv').config();
+
 const MONGO_URI = process.env.MONGO_URI;
+const PORT = process.env.PORT || 3000;
+
+// === EXPRESS APP UNTUK /healthz ===
+const healthApp = express();
+healthApp.get('/healthz', (req, res) => {
+  res.status(200).send('✅ Bot WhatsApp Aktif');
+});
+healthApp.listen(PORT, () => {
+  console.log(`🌐 Endpoint /healthz aktif di http://localhost:${PORT}/healthz`);
+});
 
 (async () => {
   try {
-    // 1. Koneksi ke MongoDB
-    await mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+    // 1. Koneksi MongoDB
+    await mongoose.connect(MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
     console.log('✅ Terhubung ke MongoDB Atlas');
 
-    // 2. Setup store session
+    // 2. Setup session store
     const store = new MongoStore({ mongoose });
 
     // 3. Setup WhatsApp Client dengan RemoteAuth
@@ -21,7 +36,7 @@ const MONGO_URI = process.env.MONGO_URI;
       authStrategy: new RemoteAuth({
         store,
         clientId: 'bot-jateng',
-        backupSyncIntervalMs: 300000, // 5 menit
+        backupSyncIntervalMs: 300000,
         dataPath: './.wwebjs_auth'
       }),
       puppeteer: {
@@ -30,7 +45,7 @@ const MONGO_URI = process.env.MONGO_URI;
       }
     });
 
-    // 4. Generate QR
+    // 4. QR Code
     client.on('qr', (qr) => {
       console.log('📱 Scan QR berikut:');
       qrcode.generate(qr, { small: true });
@@ -40,6 +55,7 @@ const MONGO_URI = process.env.MONGO_URI;
       console.log('✅ Bot WhatsApp siap digunakan (RemoteAuth)');
     });
 
+    // === Bot Logic ===
     const session = new Map();
 
     function resetSession(pengirim) {
@@ -64,7 +80,18 @@ const MONGO_URI = process.env.MONGO_URI;
 
     scheduleDailyReset();
 
-    const menuAwal = `Halo! Terima kasih telah menghubungi *Balai Besar Pelaksanaan Jalan Nasional Jawa Tengah – DI Yogyakarta*. 🙏\n\nSilakan pilih layanan berikut dengan membalas angka:\n\n1️⃣ Permohonan Informasi Publik  \n2️⃣ Peminjaman Alat Konstruksi dengan Cara Sewa  \n3️⃣ Perizinan Pemanfaatan Bagian-Bagian Jalan Nasional  \n4️⃣ Sertifikasi AMP  \n5️⃣ Permohonan Kerja Praktik / Magang  \n6️⃣ Layanan untuk Penyandang Disabilitas dan Kelompok Rentan\n\nTerima kasih.`;
+    const menuAwal = `Halo! Terima kasih telah menghubungi *Balai Besar Pelaksanaan Jalan Nasional Jawa Tengah – DI Yogyakarta*. 🙏
+
+Silakan pilih layanan berikut dengan membalas angka:
+
+1️⃣ Permohonan Informasi Publik  
+2️⃣ Peminjaman Alat Konstruksi dengan Cara Sewa  
+3️⃣ Perizinan Pemanfaatan Bagian-Bagian Jalan Nasional  
+4️⃣ Sertifikasi AMP  
+5️⃣ Permohonan Kerja Praktik / Magang  
+6️⃣ Layanan untuk Penyandang Disabilitas dan Kelompok Rentan
+
+Terima kasih.`;
 
     client.on('message', async (msg) => {
       try {
@@ -94,7 +121,10 @@ const MONGO_URI = process.env.MONGO_URI;
             await msg.reply(`✅ *Terima kasih!* Permintaan Anda akan segera ditindaklanjuti oleh petugas kami.\n\nKetik *0* jika ingin kembali ke menu layanan.`);
             resetSession(pengirim);
           } else if (pesan === '6') {
-            await msg.reply(`Terima kasih telah memilih *Layanan untuk Penyandang Disabilitas dan Kelompok Rentan*. 🙏\n\nApakah Anda penyandang disabilitas atau memiliki kebutuhan khusus?  \nBalas: *Ya* / *Tidak*`);
+            await msg.reply(`Terima kasih telah memilih *Layanan untuk Penyandang Disabilitas dan Kelompok Rentan*. 🙏
+
+Apakah Anda penyandang disabilitas atau memiliki kebutuhan khusus?  
+Balas: *Ya* / *Tidak*`);
             session.set(pengirim, { status: 'disabilitas-status' });
           } else {
             await msg.reply('Mohon pilih salah satu layanan dengan angka 1 hingga 6. 🙏');
@@ -116,13 +146,20 @@ const MONGO_URI = process.env.MONGO_URI;
         }
 
         if (userData.status === 'disabilitas-q1') {
-          session.set(pengirim, { status: 'disabilitas-q2', jawaban1: pesan });
+          session.set(pengirim, {
+            status: 'disabilitas-q2',
+            jawaban1: pesan
+          });
           await msg.reply(`• Apakah Anda membutuhkan layanan tambahan? (misalnya, penerjemah bahasa isyarat):`);
           return;
         }
 
         if (userData.status === 'disabilitas-q2') {
-          session.set(pengirim, { status: 'disabilitas-q3', jawaban1: userData.jawaban1, jawaban2: pesan });
+          session.set(pengirim, {
+            status: 'disabilitas-q3',
+            jawaban1: userData.jawaban1,
+            jawaban2: pesan
+          });
           await msg.reply(`• Apakah ada aksesibilitas lain yang diperlukan untuk konsultasi?:`);
           return;
         }
@@ -157,16 +194,4 @@ process.on('uncaughtException', (err) => {
     console.error('❌ Uncaught Exception:', err);
     process.exit(1);
   }
-});
-
-const express = require('express');
-const healthApp = express();
-
-healthApp.get('/healthz', (req, res) => {
-  res.status(200).send('OK');
-});
-
-const PORT = process.env.PORT || 3000;
-healthApp.listen(PORT, () => {
-  console.log(`🌐 Endpoint /healthz aktif di http://localhost:${PORT}/healthz`);
 });
